@@ -36,6 +36,7 @@
 int dx[4] = {BODYWIDTH, -BODYWIDTH, 0, 0};
 int dy[4] = {0, 0, BODYHEIHT, -BODYHEIHT};
 int SnackSize = 0; //蛇右多少个矩形组成
+int speed = 600;//蛇的移动速度
 /*
 贪吃蛇游戏
 链表表示蛇
@@ -57,18 +58,27 @@ typedef struct Food
 } Food;
 void RandFood(Snack *head, Food *food);
 int JudgeStateOfSnackMove(Snack *head, Food *food, int MOVE);
-/*
-吃到食物，食物的位置就是新增加的头的位置
-*/
-void Insert(Snack *head, Food *food)
+/**
+ * 吃到食物，使用尾插法，在蛇的尾部加上一个节点
+ * 增加节点的方式，要通过倒数两个节点判断增加的方向
+ */
+void Insert(Snack *head, int tail_x, int tail_y)
 {
     Snack *node = (Snack *)malloc(sizeof(Snack));
-    node->next = head;
-    head->pre = node;
-    node->x = food->x;
-    node->y = food->y;
-    head = node;
+    node->x = tail_x;
+    node->y = tail_y;
+    node->next = NULL;
+    //遍历到蛇的尾部节点
+    Snack *p = head;
+    while (p->next)
+    {
+        p = p->next;
+    }
+    //todo：在尾部增加节点
+    p->next = node;
+    node->pre = p;
     SnackSize++;
+    speed = speed * 0.6;
 }
 //初始化蛇
 Snack *CreateSnack()
@@ -93,33 +103,51 @@ Food *CreateFood()
 //没有判断边界和是否吃到自己或者食物
 void move(int MOVE, Snack *head, Food *food)
 {
+    //判断是否是向身体后面移动，如果是，直接返回
+    if (head->next != NULL && (head->x + dx[MOVE]) == head->next->x && (head->y + dy[MOVE]) == head->next->y)
+    {
+        /**这里应该修复为保持上一次移动的状态
+         */
+        return;
+    }
     Snack *p = head; //指向链表尾部
     while (p->next)
     {
         p = p->next;
     }
+    //记录尾部节点的X,Y
+    int tail_x = p->x;
+    int tail_y = p->y;
+    //先移动
+    //方向分别为左，右，下，上对应 0,1,2,3
+    //头节点的位置改变，后面的节点位置变为前一个节点的位置
+    //后面的节点位置变为前一个节点的位置，头节点后面在动
+    while (p->pre)
+    {
+        p->x = p->pre->x;
+        p->y = p->pre->y;
+        p = p->pre;
+    }
+    //改变头节点的位置
+    head->x = head->x + dx[MOVE];
+    head->y = head->y + dy[MOVE];
     int state = JudgeStateOfSnackMove(head, food, MOVE);
     switch (state)
     {
-    case 1:                 //吃到食物
-       // Insert(head, food); 
-        RandFood(head, food);//在随机一个食物的位置
+    case 1: //吃到食物
+        Insert(head, tail_x, tail_y);
+        RandFood(head, food); //在随机一个食物的位置
         break;
     case 0:
-
+        printf("limits\n");
+        //显示文字，游戏结束，提示按ESC退出游戏-------------todo
         break;
     case 2: //正常移动
-        //方向分别为左，右，下，上对应 0,1,2,3
-        //头节点的位置改变，后面的节点位置变为前一个节点的位置
-        head->x = head->x + dx[MOVE];
-        head->y = head->y + dy[MOVE];
-        //后面的节点位置变为前一个节点的位置
-        while (p->pre)
-        {
-            p->x = p->pre->x;
-            p->y = p->pre->y;
-            p = p->pre;
-        }
+        break;
+    case 3: //吃到自己
+        printf("YOU Eat yourself!\n");
+        //显示文字，游戏结束，提示ESC退出游戏--------------todo
+
         break;
     default:
         break;
@@ -130,10 +158,11 @@ void move(int MOVE, Snack *head, Food *food)
 //x,y是食物的位置
 int JudgeStateOfSnackMove(Snack *head, Food *food, int MOVE)
 {
+    Snack *p = head;
     int x = food->x;
     int y = food->y;
-    int newX = head->x + dx[MOVE];
-    int newY = head->y + dy[MOVE];
+    int newX = head->x;
+    int newY = head->y;
     //碰到墙体
     if (newX < 0 || newX > WALLOFX || newY < 0 || newY > WALLOFY)
     {
@@ -144,6 +173,15 @@ int JudgeStateOfSnackMove(Snack *head, Food *food, int MOVE)
     {
         return 1;
     }
+ 
+        p = p->next;
+        while(p){
+            if(p->x==newX&& p->y==newY)
+                return 3;
+            p = p->next;
+        }
+  
+
     return 2;
 }
 
@@ -170,9 +208,9 @@ void RandFood(Snack *head, Food *food)
     while (true)
     {
 
-        food->x = rand() % WALLOFX;
+        food->x = (rand() * BODYWIDTH) % WALLOFX;
         srand((unsigned)time(NULL));
-        food->y = rand() % WALLOFY;
+        food->y = (rand() * BODYHEIHT) % WALLOFY;
         if (food->x == head->x && food->y == head->y)
         {
             continue;
@@ -239,8 +277,8 @@ void DrawSnackAndFood(Snack *head, Food *food, SDL_Renderer *renderer)
     //绘制
     //设置蛇和食物的颜色
     SDL_SetRenderDrawColor(renderer, R2, G2, B2, A2);
-    SDL_RenderFillRect(renderer, foodBody);  //渲染器上绘制食物
-    SDL_RenderFillRect(renderer, SnackBody); //渲染器上绘制蛇
+    SDL_RenderFillRect(renderer, foodBody);              //渲染器上绘制食物
+    SDL_RenderFillRects(renderer, SnackBody, SnackSize); //渲染器上绘制蛇
 }
 
 //todo:界面的绘制以及SDL库的使用
@@ -266,7 +304,7 @@ int main(int args, char *argv[])
     Food *food = CreateFood();
     InitTheLocationOfSnackAndFood(head, food);
     DrawSnackAndFood(head, food, renderer);
-    printf("按任意键开始游戏\n");
+    printf("Pess anyKey to begin ---to my son lgl\n");
     if (window == NULL)
     {
         printf("could not create the window %s\n", SDL_GetError());
@@ -316,11 +354,15 @@ int main(int args, char *argv[])
                 break;
             }
         }
-        printf("the rendereer");
-        SDL_Delay(100);
+
+        SDL_Delay(speed);
     }
     SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(window);
     SDL_Quit();
     return 0;
 }
+/**
+ * todo:死亡之后的效果
+ * 实现保持不按键也移动的功能
+ */
