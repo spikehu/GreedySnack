@@ -11,21 +11,21 @@
 #define MOVEDOWN 2
 #define MOVEUP 3
 //每个单元的X和Y方向的长度
-#define BODYWIDTH 10
-#define BODYHEIHT 10
+#define BODYWIDTH 20
+#define BODYHEIHT 20
 /**
  * 设置渲染器的背景颜色
  * R,G,B,透明度值 169，169，169, 255
  * 
  */
-#define R 169
-#define G 169
-#define B 169
-#define A 255
+#define R 0
+#define G 0
+#define B 0
+#define A 250
 /**蛇和食物的颜色
  */
-#define R2 128
-#define G2 128
+#define R2 255
+#define G2 69
 #define B2 0
 #define A2 255
 /**
@@ -36,7 +36,7 @@
 int dx[4] = {BODYWIDTH, -BODYWIDTH, 0, 0};
 int dy[4] = {0, 0, BODYHEIHT, -BODYHEIHT};
 int SnackSize = 0; //蛇右多少个矩形组成
-int speed = 600;//蛇的移动速度
+int speed = 600;   //蛇的移动速度
 /*
 贪吃蛇游戏
 链表表示蛇
@@ -101,14 +101,16 @@ Food *CreateFood()
 }
 //蛇的移动，上下左右一定一个单位
 //没有判断边界和是否吃到自己或者食物
-void move(int MOVE, Snack *head, Food *food)
+//返回true为死亡
+//返回false为存货
+bool move(int MOVE, Snack *head, Food *food)
 {
     //判断是否是向身体后面移动，如果是，直接返回
     if (head->next != NULL && (head->x + dx[MOVE]) == head->next->x && (head->y + dy[MOVE]) == head->next->y)
     {
         /**这里应该修复为保持上一次移动的状态
          */
-        return;
+        return false;
     }
     Snack *p = head; //指向链表尾部
     while (p->next)
@@ -141,17 +143,17 @@ void move(int MOVE, Snack *head, Food *food)
     case 0:
         printf("limits\n");
         //显示文字，游戏结束，提示按ESC退出游戏-------------todo
-        break;
+        return true;
     case 2: //正常移动
         break;
     case 3: //吃到自己
         printf("YOU Eat yourself!\n");
+        return true;
         //显示文字，游戏结束，提示ESC退出游戏--------------todo
-
-        break;
     default:
         break;
     }
+    return false;
 }
 //判断边界和是否吃到食物
 //返回1表示吃到食物，返回0表示下一步碰到边界，否则返回2表示正常移动
@@ -164,7 +166,7 @@ int JudgeStateOfSnackMove(Snack *head, Food *food, int MOVE)
     int newX = head->x;
     int newY = head->y;
     //碰到墙体
-    if (newX < 0 || newX > WALLOFX || newY < 0 || newY > WALLOFY)
+    if (newX < 0 || newX > WALLOFX - BODYWIDTH || newY < 0 || newY > WALLOFY - BODYHEIHT)
     {
         return 0;
     }
@@ -173,14 +175,14 @@ int JudgeStateOfSnackMove(Snack *head, Food *food, int MOVE)
     {
         return 1;
     }
- 
+
+    p = p->next;
+    while (p)
+    {
+        if (p->x == newX && p->y == newY)
+            return 3;
         p = p->next;
-        while(p){
-            if(p->x==newX&& p->y==newY)
-                return 3;
-            p = p->next;
-        }
-  
+    }
 
     return 2;
 }
@@ -311,9 +313,11 @@ int main(int args, char *argv[])
         return 1;
     }
 
-    int index = 0;
+    int moveStae = MOVEDOWN;
+    int flag = 0;
     while (!quit)
     {
+        flag = 0;
 
         while (!quit && SDL_PollEvent(&event))
         {
@@ -329,24 +333,35 @@ int main(int args, char *argv[])
                 switch (event.key.keysym.sym)
                 {
                 case SDLK_UP: //按上键
-                    move(MOVEUP, head, food);
+                    moveStae = MOVEUP;
+                    flag = 1;
+                    quit = move(moveStae, head, food);
                     break;
                 case SDLK_DOWN: //按下键
-                    move(MOVEDOWN, head, food);
+                 flag = 1;
+                    moveStae = MOVEDOWN;
+                    quit = move(moveStae, head, food);
 
                     break;
                 case SDLK_LEFT: //按左键
-                    move(MOVELEFT, head, food);
+                 flag = 1;
+                    moveStae = MOVELEFT;
+                    quit = move(moveStae, head, food);
                     break;
                 case SDLK_RIGHT: //按右键
-                    move(MOVERIGHT, head, food);
+                 flag = 1;
+                    moveStae = MOVERIGHT;
+                    quit = move(moveStae, head, food);
                     break;
                 case SDLK_ESCAPE: //退出游戏
                     quit = true;
                     break;
                 default:
+
                     break;
                 } //键盘事件结尾
+                
+               
                 DrawSnackAndFood(head, food, renderer);
                 SDL_RenderPresent(renderer); //刷新帧数
                 break;
@@ -354,7 +369,11 @@ int main(int args, char *argv[])
                 break;
             }
         }
-
+        if(flag==1)
+            continue;
+        quit = move(moveStae, head, food);
+        DrawSnackAndFood(head, food, renderer);
+        SDL_RenderPresent(renderer); //刷新帧数
         SDL_Delay(speed);
     }
     SDL_DestroyRenderer(renderer);
@@ -363,6 +382,6 @@ int main(int args, char *argv[])
     return 0;
 }
 /**
- * todo:死亡之后的效果
- * 实现保持不按键也移动的功能
+ * todo:死亡之后的效果（在界面添加文字功能）
+ * 实现保持不按键也移动的功能(在move中修改)
  */
